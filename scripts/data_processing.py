@@ -142,6 +142,9 @@ def clean_data(df, dashboard_file_pre):
         dropped_rows = initial_shape[0] - df.shape[0]
         logging.info(f"Dropped {dropped_rows} rows where 'YearsAtCompany' <= 0.")
         logging.info(f"Shape after dropping rows: {df.shape}")
+     
+    # Drop Rows where 'Age' < 18
+    df = df[df["Age"] >= 18]
     
     # Convert specific columns to categorical
     categorical_columns = df.select_dtypes(include=['object', 'category']).columns
