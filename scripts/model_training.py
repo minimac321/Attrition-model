@@ -199,7 +199,7 @@ def main():
             y_train=y_train,
             X_valid=X_valid,
             y_valid=y_valid,
-            n_trials=15,
+            n_trials=25,
         )
 
         # Fit the model on the combined train and validation set

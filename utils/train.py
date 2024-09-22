@@ -193,9 +193,9 @@ def create_pipeline(X_train: pd.DataFrame, model_name: str) -> Pipeline:
         classifier = XGBClassifier(
             random_state=RANDOM_VALUE,
             eval_metric="logloss",
-            reg_lambda=3.0,  # L2 regularization (Default is 1.0)
+            reg_lambda=4.0,  # L2 regularization (Default is 1.0)
             reg_alpha=1.5,
-            gamma=2,
+            gamma=1,
         )
     elif model_name == "DecisionTree":
         classifier = DecisionTreeClassifier(
@@ -232,13 +232,13 @@ def define_hyperparam_space(model_name: str) -> dict:
     """
     if model_name == "XGBoost":
         space = {
-            "classifier__n_estimators": scope.int(hp.randint("classifier__n_estimators", 10, 301)),
-            "classifier__max_depth": scope.int(hp.randint("classifier__max_depth", 1, 20)),
+            "classifier__n_estimators": scope.int(hp.randint("classifier__n_estimators", 10, 201)),
+            "classifier__max_depth": scope.int(hp.randint("classifier__max_depth", 1, 10)),
             "classifier__learning_rate": hp.uniform("classifier__learning_rate", 0.01, 0.3),
             "classifier__colsample_bytree": hp.uniform("classifier__colsample_bytree", 0.1, 1.0),
-            "classifier__colsample_bylevel": hp.uniform("classifier__colsample_bylevel", 0.4, 1.0),
+            "classifier__colsample_bylevel": hp.uniform("classifier__colsample_bylevel", 0.3, 1.0),
             "classifier__min_child_weight": scope.int(
-                hp.randint("classifier__min_child_weight", 1, 100)
+                hp.randint("classifier__min_child_weight", 1, 50)
             ),
         }
 
@@ -312,11 +312,11 @@ def tune_hyperparameters(
             X_combined = pd.concat([X_train, X_valid], axis=0)
             y_combined = pd.concat([y_train, y_valid], axis=0)
             y_combined_pred = cross_val_predict(pipeline, X_combined, y_combined, cv=4)
-            score = f1_score(y_combined, y_combined_pred, average="weighted")
+            score = f1_score(y_combined, y_combined_pred, average="binary")
         else:
             pipeline.fit(X_train, y_train)
             y_pred = pipeline.predict(X_valid)
-            score = f1_score(y_valid, y_pred, average="weighted")
+            score = f1_score(y_valid, y_pred, average="binary")
 
         logging.info(f"F1 Score: {score} with params: {params}")
         return {"loss": -score, "status": STATUS_OK}
