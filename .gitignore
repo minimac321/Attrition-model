@@ -6,3 +6,11 @@ mlruns/
 
 # Ignore __pycache__ directories
 __pycache__/
+
+data/output_data
+data/transformed_data
+data/processed_data
+data/processed_dir
+data/training_data
+data/evaluation
+data/reports
