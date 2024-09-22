@@ -17,7 +17,7 @@ current_location = Path(os.path.abspath("")).resolve()
 print(current_location)
 sys.path.append(str(current_location))
 
-from utils.constants import random_value
+from utils.constants import RANDOM_VALUE
 
 
 def plot_confusion_matrix(model, X_test, y_test, save_path=None):
@@ -188,7 +188,6 @@ def plot_permutation_importance(
     n_repeats: int = 20,
     scoring: str = "balanced_accuracy",
     show_plot: bool = False,
-    random_value=random_value,
 ) -> None:
     """
     Plots and saves permutation importance.
@@ -205,7 +204,7 @@ def plot_permutation_importance(
         show_plot (bool, optional): Whether to display the plot. Defaults to False.
     """
     result = permutation_importance(
-        model, X_test, y_test, n_repeats=n_repeats, scoring=scoring, random_state=random_value
+        model, X_test, y_test, n_repeats=n_repeats, scoring=scoring, random_state=RANDOM_VALUE
     )
     # Extract feature names and permutation importance values
     importances = (

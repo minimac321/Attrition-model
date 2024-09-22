@@ -16,6 +16,7 @@ current_location = Path(os.path.abspath('')).resolve()
 print(current_location)
 sys.path.append(str(current_location))
 
+from utils.constants import EXPERIMENT_NAME
 
 # Directories
 data_dir = os.path.join(current_location, "data")
@@ -132,11 +133,11 @@ def main():
     st.sidebar.title("MLFlow model identifiers")
     
     # Input for MLflow experiment name
-    experiment_name = st.sidebar.text_input("Enter the MLflow Experiment Name", value="EmployeeAttrition_Experiment")
+    experiment_name = st.sidebar.text_input("Enter the MLflow Experiment Name", value=experiment_name)
 
     if experiment_name:
         # Fetch all model URIs for the selected experiment
-        experiment_id, model_uris = fetch_model_uris_from_experiment(experiment_name)
+        experiment_id, model_uris = fetch_model_uris_from_experiment(EXPERIMENT_NAME)
         
         if model_uris:
             # Let the user select a model URI

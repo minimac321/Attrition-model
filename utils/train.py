@@ -23,7 +23,7 @@ current_location = Path(os.path.abspath("")).resolve()
 print(current_location)
 sys.path.append(str(current_location))
 
-from utils.constants import random_value
+from utils.constants import RANDOM_VALUE
 
 
 def load_train_valid_data(target, transformed_data_dir, skip_corr_columns: bool = True):
@@ -191,7 +191,7 @@ def create_pipeline(X_train: pd.DataFrame, model_name: str) -> Pipeline:
     # Define the classifier
     if model_name == "XGBoost":
         classifier = XGBClassifier(
-            random_state=random_value,
+            random_state=RANDOM_VALUE,
             eval_metric="logloss",
             reg_lambda=3.0,  # L2 regularization (Default is 1.0)
             reg_alpha=1.5,
@@ -199,11 +199,11 @@ def create_pipeline(X_train: pd.DataFrame, model_name: str) -> Pipeline:
         )
     elif model_name == "DecisionTree":
         classifier = DecisionTreeClassifier(
-            random_state=random_value,
+            random_state=RANDOM_VALUE,
         )
     elif model_name == "RandomForrest":
         classifier = RandomForestClassifier(
-            random_state=random_value,
+            random_state=RANDOM_VALUE,
         )
     else:
         print("No Model selected")
@@ -329,7 +329,7 @@ def tune_hyperparameters(
         algo=tpe.suggest,
         max_evals=n_trials,
         trials=trials,
-        rstate=np.random.default_rng(random_value),
+        rstate=np.random.default_rng(RANDOM_VALUE),
     )
     logging.info(f"Best hyperparameters found: {best_params}")
 

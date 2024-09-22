@@ -17,7 +17,7 @@ sys.path.append(str(current_location))
 
 
 from utils.utils import convert_target_str_to_int, setup_logging
-from utils.constants import random_value
+from utils.constants import RANDOM_VALUE
 from utils.cleaning import (
     drop_columns_with_missing_data,
     identify_numeric_columns_with_object_type,
@@ -273,12 +273,12 @@ def write_cleaned_data(df, transformed_data_dir):
 
     # Split the data into train (70%), validation (15%), and test sets (15%)
     train_df, valid_test_df = train_test_split(
-        df, test_size=0.3, random_state=random_value, stratify=df[target_class]
+        df, test_size=0.3, random_state=RANDOM_VALUE, stratify=df[target_class]
     )
     val_df, test_df = train_test_split(
         valid_test_df,
         test_size=0.5,  # 0.3 x 0.5 = 0.15
-        random_state=random_value,
+        random_state=RANDOM_VALUE,
         stratify=valid_test_df[target_class],
     )
 
@@ -331,7 +331,7 @@ def main():
     df = clean_data(df, dashboard_file_pre)
 
     # Add dummy features
-    df = add_dummy_features(df, seed_value=random_value)
+    df = add_dummy_features(df, seed_value=RANDOM_VALUE)
 
     # Feature engineering
     df = feature_engineering_steps(df)

@@ -35,6 +35,7 @@ from utils.visualisation import (
 )
 from utils.classification_class import ClassificationMetrics
 from utils.utils import get_or_create_experiment, setup_logging
+from utils.constants import EXPERIMENT_NAME
 
 setup_logging(logger_level=logging.INFO)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
@@ -159,7 +160,7 @@ def main():
 
     # Setup MLflow experiment
     experiment_id = get_or_create_experiment(
-        experiment_name="EmployeeAttrition_Experiment", current_location=current_location
+        experiment_name=EXPERIMENT_NAME, current_location=current_location
     )
     experiment = mlflow.set_experiment(experiment_id=experiment_id)
 

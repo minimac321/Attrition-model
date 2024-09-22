@@ -1,1 +1,3 @@
-random_value = 42
+RANDOM_VALUE = 42
+
+EXPERIMENT_NAME = "EmployeeAttrition_Experiment"
