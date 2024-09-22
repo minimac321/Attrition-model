@@ -219,7 +219,7 @@ def eda_page():
     )
 
     # Load data based on user's choice
-    if dataset_choice == "Raw Uncleaned Data":
+    if dataset_choice == "Data with no Anomalies":
         df_dashboard = load_post_anomaly_cleaned_data()
     else:
         df_dashboard = load_pre_anomaly_cleaned_data()
