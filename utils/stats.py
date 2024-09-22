@@ -1,6 +1,5 @@
 import pandas as pd
 from scipy import stats
-import numpy as np
 
 
 """
@@ -29,6 +28,8 @@ P-Value Interpretation:
 
 Example: If the p-value for Gender is 0.02, it suggests that gender has a significant association with attrition, meaning gender may influence whether employees leave or stay.
 """
+
+
 def run_statistical_tests(df, target):
     """
     Perform ANOVA for numeric features and Chi-Square test for categorical features
@@ -37,8 +38,8 @@ def run_statistical_tests(df, target):
     :param df: DataFrame containing the features and target variable.
     :param target: The target variable (e.g., 'Attrition') for comparison.
     """
-    numeric_cols = df.select_dtypes(include=['number']).columns
-    categorical_cols = df.select_dtypes(include=['object']).columns
+    numeric_cols = df.select_dtypes(include=["number"]).columns
+    categorical_cols = df.select_dtypes(include=["object"]).columns
 
     print("ANOVA Test (Numeric Features):")
     for col in numeric_cols:
