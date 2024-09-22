@@ -18,24 +18,29 @@ sys.path.append(str(current_location))
 # Import necessary functions
 
 # Directories
-transformed_data_dir = os.path.join(current_location, "transformed_data")
-processed_dir = os.path.join(current_location, "processed_dir")
+data_dir = os.path.join(current_location, "data")
+transformed_data_dir = os.path.join(data_dir, "transformed_data")
+processed_dir = os.path.join(data_dir, "processed_dir")
+dashboard_dir = os.path.join(data_dir, "dashboard")
 
 # Load the dataset
-def load_dashboard_data():
-    cleaned_fname = os.path.join(transformed_data_dir, "dashboard_display_data.csv")
+def load_pre_anomaly_cleaned_data():
+    cleaned_fname = os.path.join(dashboard_dir, "dashboard_display_data_pre_anomaly.csv")
     modelling_data = pd.read_csv(cleaned_fname)
     if "EmployeeID" in modelling_data.columns:
         modelling_data = modelling_data.drop(columns=["EmployeeID"], errors="ignore")
-    
+
+    assert "target" in modelling_data.columns
     return modelling_data
 
 # Load the dataset
-def load_clean_data():
-    cleaned_fname = os.path.join(transformed_data_dir, "cleaned_non_scaled_non_one_hot_data_17_09_2024.csv")
-    modelling_data = pd.read_csv(cleaned_fname)
+def load_post_anomaly_cleaned_data():
+    dashboard_data_fname = os.path.join(dashboard_dir, "dashboard_display_data_post_anomaly.csv")
+    modelling_data = pd.read_csv(dashboard_data_fname)
     if "Attrition" in modelling_data.columns:
         modelling_data = modelling_data.drop(columns=["Attrition"], errors="ignore")
+        
+    assert "target" in modelling_data.columns
     return modelling_data
 
 
@@ -73,9 +78,14 @@ def plot_anomaly_detection_results(df: pd.DataFrame, column: str, threshold: flo
 
     plt.tight_layout()
     st.pyplot(fig)
+    plt.close()
 
 # Function to plot numeric vs target boxplot
 def plot_numeric_vs_target_boxplot(df, numeric_feature, target):
+    # Clear the previous plot
+    plt.clf()
+    plt.close()
+    
     plt.figure(figsize=(10, 6))
     sns.boxplot(
         x=target, y=numeric_feature, data=df, 
@@ -84,22 +94,34 @@ def plot_numeric_vs_target_boxplot(df, numeric_feature, target):
     plt.title(f'Distribution of {numeric_feature} by {target}')
     plt.xlabel(target)
     plt.ylabel(numeric_feature)
-    st.pyplot(plt)
+    st.pyplot(plt, clear_figure=True)
 
 # Function to plot the correlation matrix
 def plot_correlation_matrix(df, target_column):
-    numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
+    # Clear the previous plot
+    plt.clf()
+    plt.close()
+    
+    numeric_columns = list(df.select_dtypes(include=['float64', 'int64']).columns)
+    for col in numeric_columns:
+        if col.strip().endswith("_dummy"):
+            numeric_columns.remove(col)
+        
     corr_matrix = df[numeric_columns].corr()
 
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(12, 10))
     mask = np.triu(np.ones_like(corr_matrix, dtype=bool), k=1)
     sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', cbar=True, square=True, linewidths=0.5, mask=mask)
     plt.title(f'Correlation Heatmap with {target_column}', fontsize=15)
     plt.tight_layout()
-    st.pyplot(plt)
-    
+    st.pyplot(plt, clear_figure=True)
+
     
 def plot_categorical_vs_target_grouped(df, feature, target):
+    # Clear the previous plot
+    plt.clf()
+    plt.close()
+    
     total_counts = df[feature].value_counts()
     attrition_yes_counts = df[df[target] == 1][feature].value_counts()
     attrition_no_counts = df[df[target] == 0][feature].value_counts()
@@ -118,7 +140,7 @@ def plot_categorical_vs_target_grouped(df, feature, target):
     plt.ylabel('Attrition Percentage (%)')
     plt.xlabel(feature)
     plt.xticks(rotation=0)
-    st.pyplot(plt)
+    st.pyplot(plt, clear_figure=True)
 
 def plot_categorical_columns(df: pd.DataFrame, columns_per_row: int = 4, width=16, height_per_row = 3):
     """
@@ -128,9 +150,16 @@ def plot_categorical_columns(df: pd.DataFrame, columns_per_row: int = 4, width=1
     - df (pd.DataFrame): The input dataframe.
     - columns_per_row (int): The number of plots to show in each row.
     """
+    # Clear the previous plot
+    plt.clf()
+    plt.close()
+    
+    print(df.shape)
     # Get all object (categorical) columns
     object_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
     
+    if object_columns == 0:
+        return
     # Calculate the number of rows required for the plot layout
     num_columns = len(object_columns)
     num_rows = (num_columns + columns_per_row - 1) // columns_per_row  # To handle uneven number of columns
@@ -159,7 +188,23 @@ def plot_categorical_columns(df: pd.DataFrame, columns_per_row: int = 4, width=1
 
     plt.suptitle("Categorical Features\n", fontsize=20)
     plt.tight_layout()    
-    st.pyplot(plt)
+    st.pyplot(plt, clear_figure=True)
+
+
+def plot_target_feature(df):
+    # Clear the previous plot
+    plt.clf()
+    plt.close()
+    
+    if "Attrition" not in df.columns:
+        sns.countplot(x='target', data=df, palette="Set2")
+    else:
+        df['Attrition_Label'] = df['Attrition'].map({1: 'Yes', 0: 'No'})
+        sns.countplot(x='Attrition_Label', data=df, palette="Set2")
+        
+    plt.title('Attrition Distribution')  # Add title
+    plt.ylabel('Count')  # Set y-label
+    st.pyplot(plt, clear_figure=True)
 
     
 # EDA page with plots
@@ -169,25 +214,33 @@ def eda_page():
     # Sidebar option for dataset selection
     dataset_choice = st.sidebar.radio(
         "Select Dataset", 
-        options=["Raw Uncleaned Data", "Cleaned Data with Dummy Variables"],
+        options=["Dashboard data with Anomalies", "Data with no Anomalies"],
         index=0
     )
 
     # Load data based on user's choice
     if dataset_choice == "Raw Uncleaned Data":
-        df_dashboard = load_dashboard_data()
+        df_dashboard = load_post_anomaly_cleaned_data()
     else:
-        df_dashboard = load_clean_data()
+        df_dashboard = load_pre_anomaly_cleaned_data()
 
-    df_dash_numeric_cols = df_dashboard.select_dtypes(include=['float64', 'int64']).columns
-    df_dash_cat_cols = df_dashboard.select_dtypes(include=['object', 'category']).columns
     target_var = "target"
+    df_dash_numeric_cols = df_dashboard.select_dtypes(include=['float64', 'int64']).drop(columns=[target_var], errors='ignore').columns        
+    df_dash_cat_cols = df_dashboard.select_dtypes(include=['object', 'category']).columns
     
     # Show basic info
     st.subheader("Dataset Overview")
-    st.write(df_dashboard.describe().T)
     st.write(f"Dataset Shape: {df_dashboard.shape}")
-    st.dataframe(df_dashboard.head())
+
+    st.subheader(f"Dataset Statistics:")
+    st.write(df_dashboard.describe().T)
+    st.subheader(f"Dataset Sampled:")
+    st.dataframe(df_dashboard.head(3))
+    
+    st.subheader("Target Feature Distributions")
+    plot_target_feature(
+        df=df_dashboard,
+    )
 
     # Plot categorical columns
     st.subheader("Categorical Feature Distributions")
@@ -227,10 +280,8 @@ def eda_page():
 # Main function for Streamlit
 def main():
     st.sidebar.title("Navigation")
-    page = st.sidebar.selectbox("Choose a page", ["EDA"])
-
-    if page == "EDA":
-        eda_page()
+    # page = st.sidebar.selectbox("Choose a page", ["EDA"])
+    eda_page()
 
 if __name__ == "__main__":
     main()

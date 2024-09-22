@@ -4,6 +4,22 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
+def plot_feature_importance(pipeline, feature_names, top_n=20):
+    # Extract feature importances
+    importances = pipeline.named_steps['classifier'].feature_importances_
+    feature_importance = pd.Series(importances, index=feature_names)
+    top_features = feature_importance.sort_values(ascending=False).head(top_n)
+    
+    # Plot
+    plt.figure(figsize=(10,8))
+    sns.barplot(x=top_features.values, y=top_features.index)
+    plt.title('Top Feature Importances')
+    plt.xlabel('Importance Score')
+    plt.ylabel('Features')
+    plt.tight_layout()
+    plt.show()
+   
+   
 def plot_categorical_columns(df: pd.DataFrame, columns_per_row: int = 4, width=16, height_per_row = 3):
     """
     Plots bar charts for all categorical columns in the dataframe, with a specific number of plots per row.
@@ -14,6 +30,9 @@ def plot_categorical_columns(df: pd.DataFrame, columns_per_row: int = 4, width=1
     """
     # Get all object (categorical) columns
     object_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    
+    if object_columns == 0:
+        return
     
     # Calculate the number of rows required for the plot layout
     num_columns = len(object_columns)
@@ -42,9 +61,7 @@ def plot_categorical_columns(df: pd.DataFrame, columns_per_row: int = 4, width=1
         fig.delaxes(axes[j])
 
     plt.suptitle("Categorical Features\n", fontsize=20)
-    plt.tight_layout()
-    plt.show()
-    
+    plt.tight_layout()    
     
 
 def plot_anomaly_detection_results(df: pd.DataFrame, column: str, threshold: float = 3.5, figsize=(16, 6)):
@@ -99,8 +116,52 @@ def plot_anomaly_detection_results(df: pd.DataFrame, column: str, threshold: flo
     axes[1].set_ylabel('Frequency')
 
     # Adjust layout and show the plots
-    plt.tight_layout()
-    plt.show()
+    plt.tight_layout()    
+    return fig, axes
+
+
+# def plot_categorical_vs_target_grouped(df, feature, target):
+#     """
+#     Plots a bar chart showing the percentage of a categorical feature's values grouped by the target variable.
+
+#     Parameters:
+#     - df (pd.DataFrame): The input dataframe.
+#     - feature (str): The categorical feature to plot.
+#     - target (str): The target variable to group by.
+
+#     Returns:
+#     - fig, axes: Matplotlib figure and axes objects.
+#     """
+#     total_counts = df[feature].value_counts()
+    
+#     # Handle both 0/1 and 'Yes'/'No' cases for the target
+#     attrition_yes_counts = df[df[target] == 1][feature].value_counts()
+#     attrition_no_counts = df[df[target] == 0][feature].value_counts()
+
+#     # Calculate percentages
+#     attrition_yes_percentage = (attrition_yes_counts / total_counts * 100).fillna(0)
+#     attrition_no_percentage = (attrition_no_counts / total_counts * 100).fillna(0)
+    
+#     # Create a DataFrame for easier plotting
+#     percentages_df = pd.DataFrame({
+#         'Attrition = Yes': attrition_yes_percentage,
+#         'Attrition = No': attrition_no_percentage
+#     })
+
+#     # Create the figure and axes objects
+#     fig, axes = plt.subplots(figsize=(10, 6))
+
+#     # Plot side-by-side bars
+#     percentages_df.plot(kind='bar', ax=axes)
+    
+#     # Set plot title and labels
+#     axes.set_title(f'Percentage of Attrition by {feature}')
+#     axes.set_ylabel('Attrition Percentage (%)')
+#     axes.set_xlabel(feature)
+#     axes.set_xticklabels(axes.get_xticklabels(), rotation=0)
+    
+#     # Return the figure and axes for rendering outside the function
+#     return fig, axes
 
 
 def plot_categorical_vs_target_grouped(df, feature, target):
@@ -122,7 +183,6 @@ def plot_categorical_vs_target_grouped(df, feature, target):
     plt.ylabel('Attrition Percentage (%)')
     plt.xlabel(feature)
     plt.xticks(rotation=0)
-    plt.show()
     
     
 def plot_numeric_vs_target_boxplot(df, numeric_feature, target):
@@ -177,7 +237,7 @@ def plot_correlation_matrix_with_target(df, target_column, figsize=(8, 8)):
         linewidths=0.5,
         linecolor='white', 
         mask=mask,
-        annot_kws={"size": 10}
+        annot_kws={"size": 9}
     )
     
     # Highlight the diagonal

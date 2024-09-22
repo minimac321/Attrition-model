@@ -42,6 +42,25 @@ def correct_numeric_columns_with_object_type(value, lower_bound=1, upper_bound=5
         return value
 
 
+def validate_columns_against_reference(df, reference_column, columns_to_validate):
+    """
+    Adds a boolean feature `sanity_feature_value_check` that indicates if all values in
+    the specified columns are less than or equal to the reference column.
+    
+    :param df: The DataFrame.
+    :param reference_column: The column to use as the reference for the check.
+    :param columns_to_validate: A list of columns to compare against the reference column.
+    :return: The DataFrame with the new sanity check feature.
+    """
+    # Initialize sanity_feature_value_check to True
+    df['sanity_feature_value_check'] = True
+    
+    # Loop through the columns to check if any value is greater than the reference column
+    for col in columns_to_validate:
+        # Check if each value in the column is less than or equal to the reference column, then update the sanity check column
+        df['sanity_feature_value_check'] = df['sanity_feature_value_check'] & (df[col] <= df[reference_column])
+    
+    return df
 
 
 def fill_missing_values(df: pd.DataFrame) -> pd.DataFrame:
@@ -123,15 +142,22 @@ def modified_z_score_anomaly_detection(df: pd.DataFrame, column: str, threshold:
     return df
 
 
-def filter_anomalies(df, anomaly_columns):
+def drop_columns_with_missing_data(df: pd.DataFrame, nan_data_threshold_perc: float) -> tuple:
     """
-    Filters a DataFrame to return only the rows where any value in the specified anomaly columns is True.
+    Drops columns from the DataFrame where the percentage of missing data exceeds the threshold.
     
-    :param df: The DataFrame containing the data.
-    :param anomaly_columns: A list of column names that indicate anomalies (boolean columns).
-    :return: Filtered DataFrame where any value in the specified anomaly columns is True.
+    :param df: The input DataFrame.
+    :param nan_data_threshold_perc: The percentage (0.0 to 1.0) of missing data allowed for each column. 
+                      Columns with more than this percentage of missing data will be dropped.
+    :return: A tuple containing the modified DataFrame and a list of dropped columns.
     """
-    # Use the any() function to filter rows where any of the anomaly columns are True
-    filtered_df = df[~df[anomaly_columns].any(axis=1)]
+    # Calculate the percentage of missing data for each column
+    missing_percentage = df.isnull().mean()
     
-    return filtered_df
+    # Identify columns where the missing percentage is greater than the threshold
+    columns_to_drop = missing_percentage[missing_percentage > nan_data_threshold_perc].index.tolist()
+    
+    # Drop the identified columns from the DataFrame
+    df_cleaned = df.drop(columns=columns_to_drop)
+    
+    return df_cleaned, columns_to_drop

@@ -21,7 +21,11 @@ def add_random_survey_fields(df: pd.DataFrame, seed_value: int) -> pd.DataFrame:
     train_opportunities_levels = [True, False]
     df['TrainingOpportunitiesBool_dummy'] = np.random.choice(train_opportunities_levels, df.shape[0], p=[0.4, 0.6])
 
-    return df
+    fields_added = [
+        "WorkLifeBalanceScore_dummy", "WorkPlaceSatisfactionScore_dummy",
+        "EmployeeEngagementLevel_dummy", "TrainingOpportunitiesBool_dummy",
+    ]
+    return df, fields_added
 
 
 
@@ -34,18 +38,18 @@ def years_in_role_to_years_at_company(df: pd.DataFrame) -> pd.DataFrame:
 
 # Feature 2: Years Since Last Promotion to Years at Company Ratio
 def years_since_promotion_to_years_at_company(df: pd.DataFrame) -> pd.DataFrame:
-    df['PromotionToCompanyRatio'] = np.where(
+    df['YearsSincePromoOverTotalYearsRatio'] = np.where(
         df['YearsAtCompany'] != 0, 
         df['YearsSinceLastPromotion'] / df['YearsAtCompany'], 
         np.nan
     )
     return df
 
-# Feature 3: Salary Hike Percentage in Relation to Job Level
-def salary_hike_to_job_level(df: pd.DataFrame) -> pd.DataFrame:
-    df['SalaryHikeToJobLevel'] = np.where(
-        df['JobLevel'].astype(float) != 0, 
-        df['PercentSalaryHike'] / df['JobLevel'].astype(float), 
+# Feature 3: Salary Hike Percentage in Relation to Monthly Income
+def salary_hike_to_monthly_income(df: pd.DataFrame) -> pd.DataFrame:
+    df['SalaryHikeToIncome'] = np.where(
+        df['MonthlyIncome'] != 0,
+        df['PercentSalaryHike'] / df['MonthlyIncome'].astype(float), 
         np.nan
     )
     return df
@@ -59,13 +63,23 @@ def income_percent_of_department_avg(df: pd.DataFrame) -> pd.DataFrame:
     df.drop(columns=['DeptAvgIncome'], inplace=True)
     return df
 
-# Feature 5: Income as a Percent of Job Role Average
-def income_percent_of_jobrole_avg(df: pd.DataFrame) -> pd.DataFrame:
-    df['JobRoleAvgIncome'] = df.groupby('JobRole')['MonthlyIncome'].transform('mean')
-    df['IncomeToJobRoleAvg'] = np.where(df['JobRoleAvgIncome'] != 0, 
-                                        df['MonthlyIncome'] / df['JobRoleAvgIncome'], 
-                                        np.nan)
-    df.drop(columns=['JobRoleAvgIncome'], inplace=True)
+# Feature 5: Overtime per Department Ratio
+def satisfaction_to_job_role_avg(df: pd.DataFrame) -> pd.DataFrame:
+    job_role_mode = df.groupby('JobRole')['JobSatisfaction'].agg(lambda x: x.mode()[0])
+    df['JobRoleAvgSatisfaction'] = df['JobRole'].map(job_role_mode)
+
+    def satisfaction_comparison(row):
+        if row['JobSatisfaction'] > row['JobRoleAvgSatisfaction']:
+            return 'greater'
+        elif row['JobSatisfaction'] == row['JobRoleAvgSatisfaction']:
+            return 'equal'
+        else:
+            return 'less'
+
+    df['SatisfactionToJobRoleAvg'] = df.apply(satisfaction_comparison, axis=1)
+    if 'JobRoleAvgSatisfaction' in df.columns:
+        df.drop(columns=['JobRoleAvgSatisfaction'], inplace=True)
+
     return df
 
 # Feature 6: Overtime per Department Ratio
@@ -105,6 +119,30 @@ def years_company_performance_interaction(df: pd.DataFrame) -> pd.DataFrame:
     df['YearsAtCompanyPerformanceInteraction'] = df['YearsAtCompany'] * df['PerformanceRating'].astype(float)
     return df
 
+# Feature 12: Interaction between PerformanceRating and JobSatisfaction
+def performance_rating_job_satisfaction_interaction(df: pd.DataFrame) -> pd.DataFrame:
+    df['OvertimeJobSatisfactionInteraction'] = df['PerformanceRating'] + '_' + df['JobSatisfaction'].astype(str)
+    return df
+
+# Feature 13: Overtime per Department Ratio
+def satisfaction_to_department_avg(df: pd.DataFrame) -> pd.DataFrame:
+    department_mode = df.groupby('Department')['JobSatisfaction'].agg(lambda x: x.mode()[0])
+    df['DepartmentAvgSatisfaction'] = df['Department'].map(department_mode)
+
+    def satisfaction_comparison(row):
+        if row['JobSatisfaction'] > row['DepartmentAvgSatisfaction']:
+            return 'greater'
+        elif row['JobSatisfaction'] == row['DepartmentAvgSatisfaction']:
+            return 'equal'
+        else:
+            return 'less'
+
+    df['SatisfactionToDepartmentAvg'] = df.apply(satisfaction_comparison, axis=1)
+    if 'DepartmentAvgSatisfaction' in df.columns:
+        df.drop(columns=['DepartmentAvgSatisfaction'], inplace=True)
+
+    return df
+
 # NaN Checking Function
 def check_for_nan(df: pd.DataFrame) -> pd.DataFrame:
     for column in df.columns:
@@ -132,19 +170,21 @@ def apply_feature_engineering(df: pd.DataFrame, add_dummy_data: bool =True) -> p
     df = df.copy()
     original_cols = set(df.columns)
     
-    
     # Apply each feature engineering step safely (only if columns exist)
     df = safe_feature_engineering(years_in_role_to_years_at_company, df, ['YearsInCurrentRole', 'YearsAtCompany'])
     df = safe_feature_engineering(years_since_promotion_to_years_at_company, df, ['YearsSinceLastPromotion', 'YearsAtCompany'])
-    df = safe_feature_engineering(salary_hike_to_job_level, df, ['PercentSalaryHike', 'JobLevel'])
-    df = safe_feature_engineering(income_percent_of_department_avg, df, ['MonthlyIncome', 'Department'])
-    df = safe_feature_engineering(income_percent_of_jobrole_avg, df, ['MonthlyIncome', 'JobRole'])
+    df = safe_feature_engineering(salary_hike_to_monthly_income, df, ['PercentSalaryHike', 'MonthlyIncome'])
+    # Remove this feature due to a very high correleation with MonthlyIncome
+    # df = safe_feature_engineering(income_percent_of_department_avg, df, ['MonthlyIncome', 'Department'])
+    df = safe_feature_engineering(satisfaction_to_job_role_avg, df, ['JobRole', 'JobSatisfaction'])
+    df = safe_feature_engineering(satisfaction_to_department_avg, df, ['JobSatisfaction', 'Department'])
     df = safe_feature_engineering(overtime_per_department_ratio, df, ['OverTime', 'Department'])
     df = safe_feature_engineering(distance_from_home_grouping, df, ['DistanceFromHome'])
     df = safe_feature_engineering(age_group, df, ['Age'])
     df = safe_feature_engineering(marital_status_gender_interaction, df, ['MaritalStatus', 'Gender'])
     df = safe_feature_engineering(overtime_job_satisfaction_interaction, df, ['OverTime', 'JobSatisfaction'])
     df = safe_feature_engineering(years_company_performance_interaction, df, ['YearsAtCompany', 'PerformanceRating'])
+    df = safe_feature_engineering(performance_rating_job_satisfaction_interaction, df, ['PerformanceRating', 'JobSatisfaction'])
     
     additional_columns = list(set(df.columns) - set(original_cols))
     
@@ -182,7 +222,7 @@ def apply_feature_engineering(df: pd.DataFrame, add_dummy_data: bool =True) -> p
 #     # Apply each feature engineering step safely (only if columns exist)
 #     df = safe_feature_engineering(years_in_role_to_years_at_company, df, ['YearsInCurrentRole', 'YearsAtCompany'])
 #     df = safe_feature_engineering(years_since_promotion_to_years_at_company, df, ['YearsSinceLastPromotion', 'YearsAtCompany'])
-#     df = safe_feature_engineering(salary_hike_to_job_level, df, ['PercentSalaryHike', 'JobLevel'])
+#     df = safe_feature_engineering(salary_hike_to_monthly_income, df, ['PercentSalaryHike', 'JobLevel'])
 #     df = safe_feature_engineering(income_percent_of_department_avg, df, ['MonthlyIncome', 'Department'])
 #     df = safe_feature_engineering(income_percent_of_jobrole_avg, df, ['MonthlyIncome', 'JobRole'])
 #     df = safe_feature_engineering(overtime_per_department_ratio, df, ['OverTime', 'Department'])
