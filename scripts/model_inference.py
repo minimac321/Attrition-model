@@ -23,9 +23,8 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.info("Starting model training pipeline.")
 
 
-def main():
+def main(model_uri: str):
     # Define paths
-    model_uri = "runs:/6d34577c481f4040b70158e370bdffdb/model"
     run_id = model_uri.split("/")[1]
     inference_data_fname = os.path.join(transformed_data_dir, "inference_sample.csv")
 
@@ -54,4 +53,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Use sys.argv to fetch the model_uri from command-line arguments
+    if len(sys.argv) != 2:
+        logging.info("Usage: python script_name.py <mlflow-model-uri>")
+        sys.exit(1)
+
+    # model_uri will be the second argument in sys.argv
+    model_uri = sys.argv[1]
+    logging.info(f"model_uri: {model_uri}")
+    
+    # Pass the model_uri to main function
+    main(model_uri=model_uri)

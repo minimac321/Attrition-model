@@ -32,9 +32,8 @@ logging.info("Starting model training pipeline.")
 # ===========================
 # Main Script
 # ===========================
-def main():
+def main(model_uri: str):
     # Define paths
-    model_uri = "runs:/6d34577c481f4040b70158e370bdffdb/model"
     test_data_path = os.path.join(transformed_data_dir, "test_script.csv")
 
     # Load test data
@@ -47,9 +46,6 @@ def main():
     # Create a ClassificationMetrics instance to compute the metrics
     classifier_metric_obj = ClassificationMetrics(model, X_test, y_test, cutoff_point=0.3232)
     classifier_metric_obj.run_evaluation()
-    y_test_preds = classifier_metric_obj.get_predictions()
-    y_test_prob_preds = classifier_metric_obj.get_probability_predictions()
-
     metrics_dict = classifier_metric_obj.get_metrics_dict()
 
     # Start an MLflow run to log new metrics
@@ -73,4 +69,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Use sys.argv to fetch the model_uri from command-line arguments
+    if len(sys.argv) != 2:
+        logging.info("Usage: python script_name.py <mlflow-model-uri>")
+        sys.exit(1)
+
+    # model_uri will be the second argument in sys.argv
+    model_uri = sys.argv[1]
+    logging.info(f"model_uri: {model_uri}")
+    
+    # Pass the model_uri to main function
+    main(model_uri=model_uri)

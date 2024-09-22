@@ -242,8 +242,8 @@ def main():
         mlflow.sklearn.log_model(pipeline, "model")
         logging.info("Model logged to MLflow.")
 
-    logging.info(f"Finished with Model uri: {str(model_info.model_uri)}")
     logging.info("Model training pipeline completed successfully.")
+    logging.info(f"Finished with Model uri\n{str(model_info.model_uri)}")
 
 
 if __name__ == "__main__":
