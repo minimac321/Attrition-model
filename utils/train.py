@@ -1,7 +1,9 @@
-
-
-# src/data_preprocessing.py
+import os
+from pathlib import Path
+import sys
+import numpy as np
 import pandas as pd
+from sklearn.calibration import cross_val_predict
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, classification_report, f1_score
 from sklearn.model_selection import train_test_split
 import os
@@ -9,10 +11,66 @@ from sklearn.model_selection import RandomizedSearchCV
 from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 from hyperopt.pyll import scope
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
-from sklearn.pipeline import Pipeline
+from sklearn.pipeline import FunctionTransformer, Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
+import logging
+
+
+# Add my parent directory to path variables
+current_location = Path(os.path.abspath('')).resolve()
+print(current_location)
+sys.path.append(str(current_location))
+
+from utils.constants import random_value
+
+def load_train_valid_data(target, transformed_data_dir, skip_corr_columns: bool = True):
+    """
+    Reads in the train and validation data from CSV files.
+    """
+    train_path = os.path.join(transformed_data_dir, "train_script.csv")
+    val_path = os.path.join(transformed_data_dir, "validation_script.csv")
+
+    try:
+        train_df = pd.read_csv(train_path)
+        val_df = pd.read_csv(val_path)
+        logging.info("Successfully loaded train and validation  data.")
+        logging.info(f"Train df: {train_df.shape}")
+        logging.info(f"Validation df: {val_df.shape}")
+        
+        # Skip Highly Correlated Columns:
+        skip_corr_columns = True
+        if skip_corr_columns:
+            corr_cols_to_skip = ["YearsWithCurrManager", "YearsSinceLastPromotion", "YearsInCurrentRole"]
+            train_df = train_df.drop(columns=corr_cols_to_skip, errors='ignore')
+            val_df = val_df.drop(columns=corr_cols_to_skip, errors='ignore')
+            
+        # Skip dummy columns
+        skip_dummy_columns = True
+        if skip_dummy_columns:
+            dummy_cols_to_drop = [col for col in train_df.columns if "_dummy" in str(col)]   
+            train_df = train_df.drop(columns=dummy_cols_to_drop, errors='ignore')
+            val_df = val_df.drop(columns=dummy_cols_to_drop, errors='ignore')
+            
+        keep_subset_cols = False
+        if keep_subset_cols:
+            cols_to_kep = ["target", "Age", "YearsAtCompany", "MonthlyIncome", "DistanceFromHome", "PerformanceRating"]
+            train_df = train_df[cols_to_kep]
+            val_df = val_df[cols_to_kep]
+            
+        # Separate features and target
+        X_train = train_df.drop(columns=[target])
+        y_train = train_df[target]
+        X_valid = val_df.drop(columns=[target])
+        y_valid = val_df[target]
+        
+    except FileNotFoundError as e:
+        logging.error(f"Data file not found: {e}")
+        sys.exit(1)
+
+    return X_train, y_train, X_valid, y_valid
 
 
 def split_and_save_data(input_df: pd.DataFrame, target_col: str, processed_dir:str, random_state):
@@ -48,154 +106,6 @@ def split_and_save_data(input_df: pd.DataFrame, target_col: str, processed_dir:s
     }
 
 
-# Define a function for preprocessing pipeline
-def create_preprocessing_pipeline(X_train):
-    """
-    Create a preprocessing pipeline to scale numeric features and one-hot encode categorical features.
-    """
-    # Identify numeric and categorical columns
-    numeric_features = X_train.select_dtypes(include=['int64', 'float64']).columns
-    categorical_features = X_train.select_dtypes(include=['object', 'category']).columns
-
-    # Create the preprocessing pipeline
-    numeric_transformer = Pipeline(steps=[
-        ('scaler', StandardScaler())
-    ])
-
-    categorical_transformer = Pipeline(steps=[
-        ('onehot', OneHotEncoder(handle_unknown='ignore'))
-    ])
-
-    # Combine numeric and categorical pipelines
-    preprocessor = ColumnTransformer(transformers=[
-        ('num', numeric_transformer, numeric_features),
-        ('cat', categorical_transformer, categorical_features)
-    ])
-    
-    return preprocessor
-
-
-# Train model function with hyperparameter tuning (RandomizedSearchCV or Hyperopt)
-def train_model(
-    X_train, y_train, X_valid, y_valid, 
-    model_name: str, 
-    use_hyperopt: bool =True, 
-    h_opt_max_evals: int = 30,
-    random_state: int=42
-):
-    """
-    Train a model (RandomForest or XGBoost) with hyperparameter tuning using either RandomizedSearchCV or Hyperopt.
-
-    :param X_train: Training features.
-    :param y_train: Training labels.
-    :param X_valid: Validation features.
-    :param y_valid: Validation labels.
-    :param model_name: Either 'RandomForest' or 'XGBoost'.
-    :param use_hyperopt: If True, use Hyperopt for Bayesian optimization; otherwise, use RandomizedSearchCV.
-    :param random_state: Random state for reproducibility.
-    :return: The best model after hyperparameter tuning.
-    """
-
-    # Get model and hyperparameter distributions
-    model, param_distributions = get_model_and_params(model_name, random_state)
-
-    # Create a preprocessing pipeline
-    preprocessor = create_preprocessing_pipeline(X_train)
-
-    # Combine preprocessing and model into one pipeline
-    pipeline = Pipeline(steps=[
-        ('preprocessor', preprocessor),
-        ('classifier', model)
-    ])
-
-    # Perform hyperparameter tuning with either RandomizedSearchCV or Hyperopt
-    if use_hyperopt:
-        print("Using Hyperopt for Bayesian optimization")
-
-        # Define the objective function for hyperopt
-        def objective(params):
-            # Update the parameters in the pipeline
-            pipeline.set_params(**params)
-            # Fit the model
-            pipeline.fit(X_train, y_train)
-            # Predict on the validation set
-            y_pred = pipeline.predict(X_valid)
-            # Calculate F1 score for class imbalance
-            f1 = f1_score(y_valid, y_pred, average='weighted')
-            return {'loss': -f1, 'status': STATUS_OK}
-
-        # Define the search space for Hyperopt
-        if model_name == 'RandomForest':
-            space = {
-                'classifier__n_estimators': scope.int(hp.randint('classifier__n_estimators', 100, 501)),
-                'classifier__max_depth': scope.int(hp.randint('classifier__max_depth', 3, 41)),
-                'classifier__min_samples_split': scope.int(hp.randint('classifier__min_samples_split', 2, 11)),
-                'classifier__min_samples_leaf': scope.int(hp.randint('classifier__min_samples_leaf', 1, 5)),
-                'classifier__max_features': hp.uniform('classifier__max_features', 0, 1.0)
-            }
-        elif model_name == 'XGBoost':
-            space = {
-                'classifier__n_estimators': scope.int(hp.randint('classifier__n_estimators', 100, 501)),
-                'classifier__max_depth': scope.int(hp.randint('classifier__max_depth', 3, 21)),
-                'classifier__learning_rate': hp.uniform('classifier__learning_rate', 0.01, 0.2),
-                'classifier__subsample': hp.uniform('classifier__subsample', 0.6, 1.0),
-                'classifier__colsample_bytree': hp.uniform('classifier__colsample_bytree', 0.6, 1.0)
-            }
-
-        # Define trials object to store the history of optimization
-        trials = Trials()
-
-        # Run hyperopt optimization
-        best = fmin(
-            fn=objective,
-            space=space,
-            algo=tpe.suggest,
-            max_evals=h_opt_max_evals,
-            trials=trials
-        )
-
-        # Update the pipeline with the best parameters found by hyperopt
-        best["classifier__max_depth"] = int(best["classifier__max_depth"])
-        print(f"Best set of params found: {best}")
-
-        pipeline.set_params(**best)
-        
-        # Fit the model on the entire training data
-        pipeline.fit(X_train, y_train)
-
-    else:
-        print("Using RandomizedSearchCV for hyperparameter tuning")
-        
-        # Perform RandomizedSearchCV for hyperparameter tuning
-        random_search = RandomizedSearchCV(
-            pipeline, param_distributions=param_distributions,
-            n_iter=10, 
-            cv=5, 
-            scoring='f1',  # Use F1 score for class imbalance
-            random_state=random_state,
-            verbose=1, 
-            n_jobs=-1
-        )
-        
-        # Fit the model on the training data
-        random_search.fit(X_train, y_train)
-
-        # Return the best estimator from RandomizedSearchCV
-        pipeline = random_search.best_estimator_
-
-    # Print best set of params
-    print(f"Best set of params found: {best}")
-
-    # Evaluate the model on the validation set
-    y_valid_pred = pipeline.predict(X_valid)
-    validation_accuracy = accuracy_score(y_valid, y_valid_pred)
-    print(f"Validation Accuracy: {validation_accuracy:.4f}")
-    print("Classification Report (Validation Data):")
-    print(classification_report(y_valid, y_valid_pred))
-
-    return pipeline
-
-
 # Get model and hyperparameter search space
 def get_model_and_params(model_name, random_state=42):
     if model_name == 'RandomForest':
@@ -220,3 +130,193 @@ def get_model_and_params(model_name, random_state=42):
         raise ValueError("Unsupported model name")
     
     return model, param_distributions
+
+ 
+# ===========================
+# Create Pipeline
+# ===========================
+def create_pipeline(X_train: pd.DataFrame, model_name: str) -> Pipeline:
+    """
+    Creates the preprocessing and classification pipeline.
+
+    Args:
+        X_train (pd.DataFrame): The training dataset.
+        model_name (str): The name of the model to be used in the pipeline.
+
+    Returns:
+        Pipeline: The complete preprocessing and classification pipeline.
+    """
+    # Identify feature types
+    bool_features = X_train.select_dtypes(include=['bool']).columns.tolist()
+    numeric_features = X_train.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    categorical_features = X_train.select_dtypes(include=['object', 'category']).columns.tolist()
+
+    assert len(bool_features) + len(numeric_features) + len(categorical_features) == X_train.shape[1], \
+        "Mismatch in feature categorization."
+
+    logging.info(f"Boolean features: {bool_features}")
+    logging.info(f"Numeric features: {numeric_features}")
+    logging.info(f"Categorical features: {categorical_features}")
+
+    # Define transformers
+    numeric_transformer = Pipeline(steps=[
+        ('scaler', StandardScaler())
+    ])
+
+    def convert_bool_to_int(x):
+        return x.astype(int)
+
+    boolean_transformer = Pipeline(steps=[
+        ('convert_bool', FunctionTransformer(convert_bool_to_int))
+    ])
+
+    # Combine transformers
+    preprocessor = ColumnTransformer(transformers=[
+        ('num', numeric_transformer, numeric_features),
+        ('bool', boolean_transformer, bool_features),
+        ('cat', 'passthrough', categorical_features)
+    ])
+    
+    # Define the classifier
+    if model_name == "XGBoost":
+        classifier =  XGBClassifier(
+            random_state=random_value,
+            eval_metric='logloss',
+            reg_lambda=3.0,  # L2 regularization (Default is 1.0)
+            reg_alpha=1.5,
+            gamma=2,
+        )
+    elif model_name == "DecisionTree":
+        classifier =  DecisionTreeClassifier(
+            random_state=random_value,
+        )
+    elif model_name == "RandomForrest":
+        classifier = RandomForestClassifier(
+            random_state=random_value,
+        )
+    else:
+        print("No Model selected")
+        sys.exit()
+
+    # Create the full pipeline
+    pipeline = Pipeline(steps=[
+        ('preprocessor', preprocessor),
+        ('classifier', classifier)
+    ])
+
+    logging.info("Pipeline created successfully.")
+
+    return pipeline
+
+# ===========================
+# Define Hyperparameter Space
+# ===========================
+def define_hyperparam_space(model_name: str) -> dict:
+    """
+    Defines the hyperparameter space for tuning based on the model selected.
+
+    Args:
+        model_name (str): The name of the model for which the hyperparameter space is defined.
+
+    Returns:
+        dict: A dictionary defining the hyperparameter space.
+    """
+    if model_name == "XGBoost":
+        space = {
+            'classifier__n_estimators': scope.int(hp.randint('classifier__n_estimators', 10, 301)),
+            'classifier__max_depth': scope.int(hp.randint('classifier__max_depth', 1, 20)),
+            'classifier__learning_rate': hp.uniform('classifier__learning_rate', 0.01, 0.3),
+            'classifier__colsample_bytree': hp.uniform('classifier__colsample_bytree', 0.1, 1.0),
+            'classifier__colsample_bylevel': hp.uniform('classifier__colsample_bylevel', 0.4, 1.0),
+            'classifier__min_child_weight': scope.int(hp.randint('classifier__min_child_weight', 1, 100)),
+        }
+        
+    elif model_name == "DecisionTree":
+        space = {
+            'classifier__max_depth': scope.int(hp.randint('classifier__max_depth', 2, 20)),
+            'classifier__min_samples_split': scope.int(hp.randint('classifier__min_samples_split', 2, 20)),
+            'classifier__min_samples_leaf': scope.int(hp.randint('classifier__min_samples_leaf', 1, 10)),
+        }
+    elif model_name == "RandomForrest":
+        space = {
+            'classifier__n_estimators': scope.int(hp.randint('classifier__n_estimators', 10, 300)),
+            'classifier__max_depth': scope.int(hp.randint('classifier__max_depth', 2, 20)),
+            'classifier__min_samples_split': scope.int(hp.randint('classifier__min_samples_split', 2, 21)),
+            'classifier__min_samples_leaf': scope.int(hp.randint('classifier__min_samples_leaf', 1, 11)),
+        }
+
+    else:
+        print("No valid model selected")
+        sys.exit()
+
+    return space
+
+
+# ===========================
+# Hyperparameter Tuning
+# ===========================
+def tune_hyperparameters(
+    pipeline: Pipeline, 
+    space: dict, 
+    X_train: pd.DataFrame, 
+    y_train: pd.Series, 
+    X_valid: pd.DataFrame, 
+    y_valid: pd.Series, 
+    n_trials: int = 10
+) -> tuple:
+    """
+    Runs hyperparameter tuning using Hyperopt.
+
+    Args:
+        pipeline (Pipeline): The machine learning pipeline to be tuned.
+        space (dict): The hyperparameter space to explore.
+        X_train (pd.DataFrame): Training feature data.
+        y_train (pd.Series): Training labels.
+        X_valid (pd.DataFrame): Validation feature data.
+        y_valid (pd.Series): Validation labels.
+        n_trials (int, optional): The number of hyperparameter tuning trials. Defaults to 10.
+
+    Returns:
+        tuple: The updated pipeline and best hyperparameters.
+    """
+    from hyperopt import STATUS_OK
+
+    def objective(params):
+        """
+        Objective function for Hyperopt.
+        """
+        pipeline.set_params(**params)
+        
+        add_cv_folds = False
+        if add_cv_folds:
+            # Perform cross-validation
+            X_combined = pd.concat([X_train, X_valid], axis=0)
+            y_combined = pd.concat([y_train, y_valid], axis=0)
+            y_combined_pred = cross_val_predict(pipeline, X_combined, y_combined, cv=4)
+            score = f1_score(y_combined, y_combined_pred, average='weighted')            
+        else:
+            pipeline.fit(X_train, y_train)
+            y_pred = pipeline.predict(X_valid)
+            score = f1_score(y_valid, y_pred, average='weighted')
+
+        logging.info(f"F1 Score: {score} with params: {params}")
+        return {'loss': -score, 'status': STATUS_OK}
+
+
+    logging.info("Starting hyperparameter tuning using Hyperopt.")
+    trials = Trials()
+    best_params = fmin(
+        fn=objective,
+        space=space,
+        algo=tpe.suggest,
+        max_evals=n_trials,
+        trials=trials,
+        rstate=np.random.default_rng(random_value)
+    )
+    logging.info(f"Best hyperparameters found: {best_params}")
+
+    # Update pipeline with best parameters
+    pipeline.set_params(**best_params)
+    logging.info("Pipeline updated with best hyperparameters.")
+
+    return pipeline, best_params

@@ -1,168 +1,52 @@
+import os
+import sys
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import shap
+from sklearn.inspection import permutation_importance
+from sklearn.metrics import confusion_matrix, roc_auc_score, roc_curve
+import mlflow
+from sklearn.pipeline import Pipeline
 
 
-def plot_feature_importance(pipeline, feature_names, top_n=20):
-    # Extract feature importances
-    importances = pipeline.named_steps['classifier'].feature_importances_
-    feature_importance = pd.Series(importances, index=feature_names)
-    top_features = feature_importance.sort_values(ascending=False).head(top_n)
-    
-    # Plot
-    plt.figure(figsize=(10,8))
-    sns.barplot(x=top_features.values, y=top_features.index)
-    plt.title('Top Feature Importances')
-    plt.xlabel('Importance Score')
-    plt.ylabel('Features')
+# Add my parent directory to path variables
+current_location = Path(os.path.abspath('')).resolve()
+print(current_location)
+sys.path.append(str(current_location))
+
+from utils.constants import random_value
+
+
+def plot_confusion_matrix(model, X_test, y_test, save_path=None):
+    """
+    Plots and saves confusion matrix.
+    """
+    y_pred = model.predict(X_test)
+    cm = confusion_matrix(y_test, y_pred)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(
+        cm, annot=True, fmt="d", cmap="Blues",
+        xticklabels=["False", "True"], 
+        yticklabels=["False", "True"],
+        annot_kws={"size": 16}
+    )
+    plt.title("Confusion Matrix")
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
     plt.tight_layout()
-    plt.show()
-   
-   
-def plot_categorical_columns(df: pd.DataFrame, columns_per_row: int = 4, width=16, height_per_row = 3):
-    """
-    Plots bar charts for all categorical columns in the dataframe, with a specific number of plots per row.
     
-    Parameters:
-    - df (pd.DataFrame): The input dataframe.
-    - columns_per_row (int): The number of plots to show in each row.
-    """
-    # Get all object (categorical) columns
-    object_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    if save_path:
+        plt.savefig(save_path)
     
-    if object_columns == 0:
-        return
+    plt.close()
     
-    # Calculate the number of rows required for the plot layout
-    num_columns = len(object_columns)
-    num_rows = (num_columns + columns_per_row - 1) // columns_per_row  # To handle uneven number of columns
-
-    # Create subplots
-    fig, axes = plt.subplots(num_rows, columns_per_row, figsize=(width, num_rows * height_per_row))
-
-    # Flatten axes in case of a single row
-    axes = axes.flatten()
-
-    # Loop through each categorical column and plot the value counts
-    for i, col in enumerate(object_columns):
-        # Get value counts for the column
-        value_counts = df[col].value_counts()
-
-        # Plot on the corresponding subplot axis
-        axes[i].bar(value_counts.index, value_counts.values, color='skyblue')
-        axes[i].set_title(col)
-        axes[i].tick_params(axis='x', rotation=45, labelsize=8)  # Rotate x-axis labels and set size
-        axes[i].set_ylabel('Count')
-        axes[i].set_xlabel(col)
-
-    # Remove unused subplots if there are any
-    for j in range(i + 1, len(axes)):
-        fig.delaxes(axes[j])
-
-    plt.suptitle("Categorical Features\n", fontsize=20)
-    plt.tight_layout()    
-    
-
-def plot_anomaly_detection_results(df: pd.DataFrame, column: str, threshold: float = 3.5, figsize=(16, 6)):
-    """
-    Plot the results of Modified Z-score anomaly detection.
-
-    :param df: DataFrame containing the data with anomaly detection results.
-    :param column: The column on which anomaly detection was performed.
-    :param threshold: The threshold used for anomaly detection.
-    """
-    # Get the median and MAD for the column to calculate bounds
-    median = df[column].median()
-    mad = np.median(np.abs(df[column] - median))
-    upper_bound = median + threshold * mad / 0.6745
-    lower_bound = median - threshold * mad / 0.6745
-    
-    # Plot the histogram with the upper and lower bounds
-    fig, axes = plt.subplots(1, 2, figsize=figsize)
-    
-    # Full data plot (Left plot)
-    sns.histplot(df[column], kde=True, ax=axes[0])
-    axes[0].axvline(upper_bound, color='r', linestyle='--', label=f'Upper bound ({upper_bound:.2f})')
-    axes[0].axvline(lower_bound, color='b', linestyle='--', label=f'Lower bound ({lower_bound:.2f})')
-    
-    # Count anomalies and display it on the plot
-    anomaly_count = df[f'anomaly_{column}'].sum()
-    data_mean = df[column].mean()
-    std = df[column].std()
-    title_t = f"""
-        Modified Z-Score Detection: {column}.
-        Anomaly Count: {anomaly_count}
-        Mean: {data_mean:.2f}
-        STD : {std: .2f}
-    """
-    axes[0].set_title(title_t, fontsize=14)
-    axes[0].set_xlabel(column)
-    axes[0].set_ylabel('Frequency')
-    axes[0].legend()
-
-    # Plot only the data within bounds (Right plot)
-    filtered_data = df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
-    filtered_data_mean = filtered_data[column].mean()
-    filtered_std = filtered_data[column].std()
-    sns.histplot(filtered_data[column], kde=True, ax=axes[1])
-    title = f"""
-        {column} Data within Bounds
-        Filtered Mean: {filtered_data_mean:.2f}
-        Filtered STD : {filtered_std: .2f}
-    """
-    axes[1].set_title(title, fontsize=14)
-    axes[1].set_xlabel(column)
-    axes[1].set_ylabel('Frequency')
-
-    # Adjust layout and show the plots
-    plt.tight_layout()    
-    return fig, axes
-
-
-# def plot_categorical_vs_target_grouped(df, feature, target):
-#     """
-#     Plots a bar chart showing the percentage of a categorical feature's values grouped by the target variable.
-
-#     Parameters:
-#     - df (pd.DataFrame): The input dataframe.
-#     - feature (str): The categorical feature to plot.
-#     - target (str): The target variable to group by.
-
-#     Returns:
-#     - fig, axes: Matplotlib figure and axes objects.
-#     """
-#     total_counts = df[feature].value_counts()
-    
-#     # Handle both 0/1 and 'Yes'/'No' cases for the target
-#     attrition_yes_counts = df[df[target] == 1][feature].value_counts()
-#     attrition_no_counts = df[df[target] == 0][feature].value_counts()
-
-#     # Calculate percentages
-#     attrition_yes_percentage = (attrition_yes_counts / total_counts * 100).fillna(0)
-#     attrition_no_percentage = (attrition_no_counts / total_counts * 100).fillna(0)
-    
-#     # Create a DataFrame for easier plotting
-#     percentages_df = pd.DataFrame({
-#         'Attrition = Yes': attrition_yes_percentage,
-#         'Attrition = No': attrition_no_percentage
-#     })
-
-#     # Create the figure and axes objects
-#     fig, axes = plt.subplots(figsize=(10, 6))
-
-#     # Plot side-by-side bars
-#     percentages_df.plot(kind='bar', ax=axes)
-    
-#     # Set plot title and labels
-#     axes.set_title(f'Percentage of Attrition by {feature}')
-#     axes.set_ylabel('Attrition Percentage (%)')
-#     axes.set_xlabel(feature)
-#     axes.set_xticklabels(axes.get_xticklabels(), rotation=0)
-    
-#     # Return the figure and axes for rendering outside the function
-#     return fig, axes
-
+    # Log the plot to MLflow
+    if mlflow.active_run():
+        mlflow.log_artifact(save_path)
+        
 
 def plot_categorical_vs_target_grouped(df, feature, target):
     total_counts = df[feature].value_counts()
@@ -243,3 +127,195 @@ def plot_correlation_matrix_with_target(df, target_column, figsize=(8, 8)):
     # Highlight the diagonal
     plt.title(f'Correlation Heatmap with {target_column}', fontsize=15)
     plt.show()
+
+    
+# ===========================
+# Plotting functions for model training script
+# ===========================
+
+
+def plot_feature_importance(
+    model: Pipeline, 
+    feature_names: list, 
+    save_path: str, 
+    top_n_features: int = 20, 
+    show_plot: bool = False
+) -> None:
+    """
+    Plots and saves feature importance.
+
+    Args:
+        model (Pipeline): The trained model pipeline.
+        feature_names (list): List of feature names.
+        save_path (str): Path where the plot will be saved.
+        top_n_features (int, optional): Number of top features to display. Defaults to 20.
+        show_plot (bool, optional): Whether to display the plot. Defaults to False.
+    """
+    importances = model.named_steps['classifier'].feature_importances_
+    feature_importance = pd.Series(importances, index=feature_names)
+    top_features = feature_importance.sort_values(ascending=False).head(top_n_features)
+
+    plt.figure(figsize=(10, 8))
+    sns.barplot(x=top_features.values, y=top_features.index)
+    plt.title(f'Top {top_n_features} Feature Importance')
+    plt.xlabel('Importance Score')
+    plt.ylabel('Features')
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path)
+    
+    if not show_plot:
+        plt.close()
+    else:
+        plt.show()
+
+    # Log the plot to MLflow
+    if mlflow.active_run():
+        mlflow.log_artifact(save_path)
+
+def plot_permutation_importance(
+    model: Pipeline, 
+    X_test: pd.DataFrame, 
+    y_test: pd.Series, 
+    feature_names: list, 
+    save_path: str, 
+    top_n_features: int = 20, 
+    n_repeats: int = 20, 
+    scoring: str = 'balanced_accuracy', 
+    show_plot: bool = False,
+    random_value=random_value,
+) -> None:
+    """
+    Plots and saves permutation importance.
+
+    Args:
+        model (Pipeline): The trained model pipeline.
+        X_test (pd.DataFrame): The test feature data.
+        y_test (pd.Series): The test labels.
+        feature_names (list): List of feature names.
+        save_path (str): Path where the plot will be saved.
+        top_n_features (int, optional): Number of top features to display. Defaults to 20.
+        n_repeats (int, optional): Number of repetitions for permutation. Defaults to 20.
+        scoring (str, optional): The scoring metric used. Defaults to 'balanced_accuracy'.
+        show_plot (bool, optional): Whether to display the plot. Defaults to False.
+    """
+    result = permutation_importance(
+        model, X_test, y_test, 
+        n_repeats=n_repeats, 
+        scoring=scoring, 
+        random_state=random_value
+    )
+    # Extract feature names and permutation importance values
+    importances = result.importances  # This gives all the permutation importance values for each feature
+
+    # Sort features by mean importance and select the top_n_features
+    sorted_indices = np.argsort(result.importances_mean)[-top_n_features:]
+
+    # Plot the box plot for the  top_n_features features
+    plt.figure(figsize=(10, 6))
+    plt.boxplot([importances[i] for i in sorted_indices], vert=False, patch_artist=True)
+    plt.yticks(range(1, len(sorted_indices) + 1), [feature_names[i] for i in sorted_indices])
+    plt.xlabel(f'Decrease in {scoring} After Permutation')
+    plt.title(f'Top {top_n_features} Features - Permutation Importance (with Variability)')
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path)
+    
+    if not show_plot:
+        plt.close()
+    else:
+        plt.show()
+
+    # Log the plot to MLflow
+    if mlflow.active_run():
+        mlflow.log_artifact(save_path)
+
+def plot_shap_values(model: Pipeline, X_test: pd.DataFrame, save_path: str, show_plot: bool = False) -> None:
+    """
+    Calculates and plots SHAP values.
+
+    Args:
+        model (Pipeline): The trained model pipeline.
+        X_test (pd.DataFrame): The test feature data.
+        save_path (str): Path where the plot will be saved.
+        show_plot (bool, optional): Whether to display the plot. Defaults to False.
+    """
+    X_test_transformed = model.named_steps['preprocessor'].transform(X_test)
+    transformed_data_df = pd.DataFrame(data=X_test_transformed, columns=X_test.columns)
+    
+    explainer = shap.Explainer(model.named_steps['classifier'])
+    shap_values = explainer(transformed_data_df)
+    plt.figure(figsize=(10, 6))
+    shap.summary_plot(shap_values, transformed_data_df, show=False)
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
+    
+    if not show_plot:
+        plt.close()
+    else:
+        plt.show()
+
+    # Log the plot to MLflow
+    if mlflow.active_run():
+        mlflow.log_artifact(save_path)
+
+def plot_roc_curve(
+    model: Pipeline, 
+    X_train: pd.DataFrame, 
+    y_train: pd.Series, 
+    X_valid: pd.DataFrame, 
+    y_valid: pd.Series, 
+    save_path: str, 
+    show_plot: bool = False
+) -> None:
+    """
+    Plots the ROC curve for both training and validation datasets.
+
+    Args:
+        model (Pipeline): The trained model pipeline.
+        X_train (pd.DataFrame): Training feature data.
+        y_train (pd.Series): Training labels.
+        X_valid (pd.DataFrame): Validation feature data.
+        y_valid (pd.Series): Validation labels.
+        save_path (str): Path where the plot will be saved.
+        show_plot (bool, optional): Whether to display the plot. Defaults to False.
+    """
+    # Get the predicted probabilities for the ROC curve
+    y_train_proba = model.predict_proba(X_train)[:, 1]
+    y_valid_proba = model.predict_proba(X_valid)[:, 1]
+
+    # Compute ROC curve and AUC for training and validation sets
+    fpr_train, tpr_train, _ = roc_curve(y_train, y_train_proba)
+    fpr_valid, tpr_valid, _ = roc_curve(y_valid, y_valid_proba)
+    auc_train = roc_auc_score(y_train, y_train_proba)
+    auc_valid = roc_auc_score(y_valid, y_valid_proba)
+
+    # Plot ROC curve
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr_train, tpr_train, label=f'Train ROC (AUC = {auc_train:.3f})')
+    plt.plot(fpr_valid, tpr_valid, label=f'Validation ROC (AUC = {auc_valid:.3f})')
+    plt.plot([0, 1], [0, 1], linestyle='--', color='gray', label='Random Classifier')
+
+    # Label the plot
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('ROC Curve')
+    plt.legend()
+    plt.grid()
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path)
+    
+    if not show_plot:
+        plt.close()
+    else:
+        plt.show()
+    
+    # Log the plot to MLflow
+    if mlflow.active_run():
+        mlflow.log_artifact(save_path)
+    
