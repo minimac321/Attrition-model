@@ -252,6 +252,40 @@ def plot_shap_values(
 
     explainer = shap.Explainer(model.named_steps["classifier"])
     shap_values = explainer(transformed_data_df)
+    
+    shap.plots.bar(shap_values, max_display=15, show=False)
+    plt.title("SHAP bar chart")
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
+
+    if not show_plot:
+        plt.close()
+    else:
+        plt.show()
+
+    # Log the plot to MLflow
+    if mlflow.active_run():
+        mlflow.log_artifact(save_path)
+        
+def plot_shap_values_bee(
+    model: Pipeline, X_test: pd.DataFrame, save_path: str, show_plot: bool = False
+) -> None:
+    """
+    Calculates and plots SHAP values.
+
+    Args:
+        model (Pipeline): The trained model pipeline.
+        X_test (pd.DataFrame): The test feature data.
+        save_path (str): Path where the plot will be saved.
+        show_plot (bool, optional): Whether to display the plot. Defaults to False.
+    """
+    X_test_transformed = model.named_steps["preprocessor"].transform(X_test)
+    transformed_data_df = pd.DataFrame(data=X_test_transformed, columns=X_test.columns)
+
+    explainer = shap.Explainer(model.named_steps["classifier"])
+    shap_values = explainer(transformed_data_df)
+    
     plt.figure(figsize=(10, 6))
     shap.summary_plot(shap_values, transformed_data_df, show=False)
     plt.tight_layout()

@@ -32,6 +32,7 @@ from utils.visualisation import (
     plot_permutation_importance,
     plot_roc_curve,
     plot_shap_values,
+    plot_shap_values_bee,
 )
 from utils.classification_class import ClassificationMetrics
 from utils.utils import get_or_create_experiment, setup_logging
@@ -129,11 +130,18 @@ def run_evaluation_with_plots(
         save_path_shap = None
         if evaluation_dir:
             save_path_shap = os.path.join(evaluation_dir, f"shap_summary.png")
+            save_path_shap_bee = os.path.join(evaluation_dir, f"shap_summary_bee.png")
 
         plot_shap_values(
             model=model,
             X_test=X_test,
             save_path=save_path_shap,
+            show_plot=show_plots,
+        )
+        plot_shap_values_bee(
+            model=model,
+            X_test=X_test,
+            save_path=save_path_shap_bee,
             show_plot=show_plots,
         )
     except:
