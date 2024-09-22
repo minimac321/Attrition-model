@@ -6,14 +6,14 @@ import os
 import mlflow
 
 
-def setup_logging(logger_level=logging.INFO, log_file="data_preparation.log"):
+def setup_logging(logger_level=logging.INFO):
     """
     Configures the logging settings.
     """
     logger = logging.basicConfig(
         level=logger_level,
         format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout), logging.FileHandler(log_file)],
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
     return logger
 
