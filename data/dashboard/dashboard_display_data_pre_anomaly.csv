@@ -705,7 +705,6 @@ Age,YearsAtCompany,MonthlyIncome,DistanceFromHome,JobLevel,PercentSalaryHike,Per
 22.0,22.0,9510.0,8.0,4.0,11.0,1.0,14.0,3.0,4.0,3.0,Female,Support,High School,Married,Executive,No,Travel_Frequently,0
 50.0,36.0,10099.0,11.0,1.0,23.0,2.0,26.0,0.0,10.0,4.0,Male,Support,Bachelors,Divorced,Technician,No,Travel_Rarely,1
 18.0,22.0,17193.0,34.0,4.0,13.0,2.0,13.0,12.0,3.0,4.0,Male,Support,PhD,Single,Manager,Yes,Non-Travel,1
-7.0,38.0,18132.0,28.0,2.0,22.0,2.0,13.0,9.0,5.0,1.0,Male,Sales,PhD,Divorced,Technician,Yes,Travel_Rarely,1
 49.0,27.0,6450.0,34.0,4.0,12.0,2.0,18.0,0.0,10.0,2.0,Male,Support,Bachelors,Single,Technician,No,Non-Travel,0
 64.0,18.0,16549.0,43.0,5.0,15.0,2.0,8.0,7.0,2.0,3.0,Female,Finance,Bachelors,Married,Executive,Yes,Non-Travel,0
 28.0,29.0,8960.0,20.0,2.0,16.0,4.0,28.0,10.0,27.0,1.0,Female,Finance,Masters,Married,Executive,Yes,Travel_Rarely,1
@@ -1545,7 +1544,6 @@ Age,YearsAtCompany,MonthlyIncome,DistanceFromHome,JobLevel,PercentSalaryHike,Per
 43.0,35.0,7490.0,28.0,3.0,20.0,4.0,19.0,0.0,3.0,1.0,Male,Sales,Masters,Married,Technician,No,Travel_Frequently,0
 58.0,30.0,18432.0,33.0,3.0,24.0,4.0,22.0,12.0,6.0,3.0,Female,HR,Bachelors,Divorced,Executive,No,Travel_Rarely,0
 20.0,9.0,7916.0,13.0,4.0,17.0,2.0,7.0,1.0,6.0,4.0,Female,Sales,Bachelors,Divorced,Clerk,No,Travel_Frequently,0
-4.0,33.0,13526.0,1.0,5.0,18.0,1.0,32.0,29.0,1.0,1.0,Female,Support,Masters,Single,Clerk,Yes,Non-Travel,0
 22.0,9.0,3746.0,38.0,3.0,24.0,4.0,3.0,3.0,0.0,2.0,Female,Development,High School,Divorced,Engineer,Yes,Non-Travel,1
 22.0,10.0,10170.0,25.0,4.0,2.0,1.0,4.0,1.0,4.0,2.0,Female,Finance,PhD,Divorced,Engineer,Yes,Travel_Frequently,1
 64.0,13.0,2633.0,42.0,1.0,23.0,4.0,7.0,3.0,4.0,1.0,Male,Sales,PhD,Single,Clerk,No,Non-Travel,0
